@@ -309,8 +309,26 @@ func Encrypt(pub *PublicKey, data []byte, random io.Reader, mode int) ([]byte, e
 	}
 }
 
-func Decrypt(priv *PrivateKey, data []byte) ([]byte, error) {
-	data = data[1:]
+func Decrypt(priv *PrivateKey, data []byte, mode int) ([]byte, error) {
+	switch mode {
+	case C1C3C2:
+		data = data[1:]
+	case C1C2C3:
+		data = data[1:]
+		c1 := make([]byte, 64)
+		c2 := make([]byte, len(data)-96)
+		c3 := make([]byte, 32)
+		copy(c1, data[:64])             //x1,y1
+		copy(c2, data[64:len(data)-32]) //密文
+		copy(c3, data[len(data)-32:])   //hash
+		c := []byte{}
+		c = append(c, c1...)
+		c = append(c, c3...)
+		c = append(c, c2...)
+		data = c
+	default:
+		data = data[1:]
+	}
 	length := len(data) - 96
 	curve := priv.Curve
 	x := new(big.Int).SetBytes(data[:32])
@@ -472,7 +490,7 @@ func DecryptAsn1(pub *PrivateKey, data []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return Decrypt(pub, cipher)
+	return Decrypt(pub, cipher, C1C3C2)
 }
 
 /*
@@ -648,5 +666,5 @@ func getLastBit(a *big.Int) uint {
 
 // crypto.Decrypter
 func (priv *PrivateKey) Decrypt(_ io.Reader, msg []byte, _ crypto.DecrypterOpts) (plaintext []byte, err error) {
-	return Decrypt(priv, msg)
+	return Decrypt(priv, msg, C1C3C2)
 }
